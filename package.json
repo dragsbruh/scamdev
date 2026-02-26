@@ -1,0 +1,16 @@
+{
+  "name": "scamdev",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "async-mutex": "^0.5.0",
+    "node-html-parser": "^7.0.2"
+  }
+}
