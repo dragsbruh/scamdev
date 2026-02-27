@@ -1,7 +1,8 @@
 import { Mutex } from "async-mutex";
 import { parse as parseHTML } from "node-html-parser";
 
-const concurrency = 15;
+const concurrency = 20;
+const timeout = 5000;
 const saveFile = Bun.file("domains.json");
 
 type ScrapeResponse = {
@@ -20,7 +21,10 @@ const getDomains = async () => {
 
 const process = (domain: string): Promise<ScrapeResponse> => {
   return new Promise((resolve) => {
-    fetch(`http://${domain}`)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    fetch(`http://${domain}`, { signal: controller.signal })
       .then((response) => {
         response.text().then((text) => {
           const title = parseHTML(text).querySelector("title");
@@ -40,7 +44,8 @@ const process = (domain: string): Promise<ScrapeResponse> => {
           error: errMsg,
           status: 69420,
         });
-      });
+      })
+      .finally(() => clearTimeout(timeoutId));
   });
 };
 
