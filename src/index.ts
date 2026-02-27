@@ -1,8 +1,8 @@
 import { Mutex } from "async-mutex";
 import { parse as parseHTML } from "node-html-parser";
 
-const concurrency = 20;
-const timeout = 5000;
+const concurrency = 25;
+const timeout = 7500;
 const saveFile = Bun.file("domains.json");
 
 type ScrapeResponse = {
