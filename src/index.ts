@@ -41,20 +41,23 @@ const process = (domain: string): Promise<ScrapeResponse> => {
         const text = await response.text();
         const document = parseHTML(text);
 
-        const iconLink =
+        const title = document.querySelector("title");
+        const body = document.querySelector("body");
+        const favicon =
           document.querySelector('link[rel="icon"]') ??
           document.querySelector('link[rel="shortcut icon"]') ??
           document.querySelector('link[rel="apple-touch-icon"]');
 
-        const title = document.querySelector("title");
-        const body = document.querySelector("body");
+        const faviconUrl = favicon?.getAttribute("href")?.trim() || undefined;
 
         result.data = {
           status: response.status,
           url: response.url,
-          title: title?.textContent,
-          body: body?.textContent,
-          favicon: iconLink?.textContent,
+          title: title?.textContent.trim() || undefined,
+          body: body?.textContent.trim() || undefined,
+          favicon: faviconUrl
+            ? new URL(faviconUrl, response.url).href
+            : undefined,
         };
       })
       .catch((err) => {
