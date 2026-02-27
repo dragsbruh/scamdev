@@ -10,6 +10,7 @@ type ScrapeData = {
   url: string;
   title?: string;
   body?: string;
+  favicon?: string;
 };
 
 type ScrapeResponse = {
@@ -40,6 +41,11 @@ const process = (domain: string): Promise<ScrapeResponse> => {
         const text = await response.text();
         const document = parseHTML(text);
 
+        const iconLink =
+          document.querySelector('link[rel="icon"]') ??
+          document.querySelector('link[rel="shortcut icon"]') ??
+          document.querySelector('link[rel="apple-touch-icon"]');
+
         const title = document.querySelector("title");
         const body = document.querySelector("body");
 
@@ -48,6 +54,7 @@ const process = (domain: string): Promise<ScrapeResponse> => {
           url: response.url,
           title: title?.textContent,
           body: body?.textContent,
+          favicon: iconLink?.textContent,
         };
       })
       .catch((err) => {
