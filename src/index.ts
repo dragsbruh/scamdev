@@ -1,16 +1,22 @@
-import { Mutex } from "async-mutex";
+import { gzipSync } from "bun";
 import { parse as parseHTML } from "node-html-parser";
 
 const concurrency = 25;
 const timeout = 7500;
-const saveFile = Bun.file("domains.json");
+const outputFile = Bun.file("domains.json.gz");
+
+type ScrapeData = {
+  status: number;
+  url: string;
+  title?: string;
+  body?: string;
+};
 
 type ScrapeResponse = {
   domain: string;
-  status: number;
-  title?: string;
-  error?: string;
   time: Date;
+  data?: ScrapeData;
+  error?: string;
 };
 
 const getDomains = async () => {
@@ -24,67 +30,62 @@ const process = (domain: string): Promise<ScrapeResponse> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
+    let result: ScrapeResponse = {
+      domain: domain,
+      time: new Date(),
+    };
+
     fetch(`http://${domain}`, { signal: controller.signal })
-      .then((response) => {
-        response.text().then((text) => {
-          const title = parseHTML(text).querySelector("title");
-          resolve({
-            domain: domain,
-            time: new Date(),
-            title: title?.textContent,
-            status: response.status,
-          });
-        });
+      .then(async (response) => {
+        const text = await response.text();
+        const document = parseHTML(text);
+
+        const title = document.querySelector("title");
+        const body = document.querySelector("body");
+
+        result.data = {
+          status: response.status,
+          url: response.url,
+          title: title?.textContent,
+          body: body?.textContent,
+        };
       })
       .catch((err) => {
-        const errMsg = err instanceof Error ? err.message : (err as string);
-        resolve({
-          domain: domain,
-          time: new Date(),
-          error: errMsg,
-          status: 69420,
-        });
+        result.error = err instanceof Error ? err.message : (err as string);
       })
-      .finally(() => clearTimeout(timeoutId));
+      .finally(() => {
+        resolve(result);
+        clearTimeout(timeoutId);
+      });
   });
 };
 
-const saveResults = async (mutex: Mutex, results: ScrapeResponse[]) => {
-  const release = await mutex.acquire();
-  await saveFile.write(JSON.stringify(results));
-  release();
+const saveResults = async (results: Map<string, ScrapeResponse>) => {
+  const encoded = JSON.stringify(Object.fromEntries(results));
+  const compressed = gzipSync(encoded, { level: 6 });
+  await outputFile.write(compressed);
 };
 
-const loadResults = (mutex: Mutex): Promise<ScrapeResponse[]> => {
-  return new Promise((resolve) =>
-    mutex.acquire().then((release) => {
-      saveFile
-        .json()
-        .then((d) => resolve(d))
-        .catch(() => resolve([]))
-        .finally(() => release());
-    }),
-  );
-};
-
-const resultsMu = new Mutex();
 const queue = await getDomains();
-
-const results = await loadResults(resultsMu);
+const results = new Map<string, ScrapeResponse>();
 
 const worker = async () => {
   while (true) {
     const domain = queue.pop();
     if (!domain) return;
 
-    const data = await process(domain);
-    results.push(data);
+    const result = await process(domain);
+    results.set(result.domain, result);
 
-    console.log(domain, data.status, data.title);
-    saveResults(resultsMu, results); // intentional
+    console.log(
+      queue.length,
+      result.domain,
+      result.data?.status,
+      result.data?.title,
+    );
   }
 };
 
 const workers = Array.from({ length: concurrency }).map(() => worker());
 await Promise.all(workers);
-await saveResults(resultsMu, results);
+await saveResults(results);

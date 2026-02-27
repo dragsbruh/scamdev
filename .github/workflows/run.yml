@@ -1,4 +1,4 @@
-name: generate domains.json
+name: generate domains index
 
 on:
   schedule:
@@ -25,11 +25,9 @@ jobs:
       - name: run
         run: bun run src/index.ts
 
-      - name: commit
+      - name: create release
         run: |
-          git config --global user.name "${{ github.actor }}"
-          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
-
-          git add .
-          git commit -m 'update domains.json'
-          git push
+          TAG=$(date +'%Y-%m-%d-%H%M%S')
+          gh release create "$TAG" domains.json.gz --title "is-a.dev on $TAG" --notes "meow ig"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
