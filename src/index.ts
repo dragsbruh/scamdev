@@ -162,7 +162,10 @@ const process = (domain: string): Promise<ScrapeResponse> => {
 
 const saveResults = async (paths: string[]) => {
   const outfile = Bun.file(outputFile);
-  await outfile.delete();
+
+  try {
+    await outfile.delete();
+  } catch (err) {}
 
   const writer = outfile.writer();
 
