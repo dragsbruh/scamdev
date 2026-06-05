@@ -16,14 +16,20 @@ jobs:
       - name: checkout main
         uses: actions/checkout@v4
 
-      - name: setup bun
-        uses: oven-sh/setup-bun@v1
+      - name: setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: setup node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
 
       - name: install deps
-        run: bun install
+        run: pnpm install
 
       - name: run
-        run: bun run src/index.ts
+        run: node src/index.ts
 
       - name: create release
         run: |
