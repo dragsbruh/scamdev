@@ -1,22 +1,26 @@
 import { parse as parseHTML } from "node-html-parser";
+import { execSync } from "node:child_process";
+import { writeFile, unlink, readFile, open, mkdir } from "node:fs/promises";
 
-const concurrency = 20;
+const isTest = process.argv.at(-1) === "--test";
+const testDomains = [
+  "furina.is-a.dev",
+  "iostpa.is-a.dev",
+  "3.is-a.dev",
+  "c.is-a.dev",
+  "clove.is-a.dev",
+  "doughmination.is-a.dev",
+];
+
+const concurrency = isTest ? 5 : 20;
 const timeout = 7500;
 
 const outputFile = "domains.json";
 
 const tempDir = "temp";
-const tempFile = (domain: string) => `${tempDir}/${domain}.json`;
+await mkdir(tempDir, { recursive: true });
 
-const isTest = Bun.argv.at(-1) === "--test";
-const testDomains = [
-  "furina.is-a.dev",
-  "hearth.is-a.dev",
-  "iostpa.is-a.dev",
-  "colon.3.is-a.dev",
-  "3.is-a.dev",
-  "c.is-a.dev",
-];
+const tempFile = (domain: string) => `${tempDir}/${domain}.json`;
 
 type ScrapeData = {
   url: string;
@@ -48,11 +52,20 @@ type ScrapeResponse = {
 
 const getDomains = async () => {
   const response = await fetch("https://raw.is-a.dev/v2.json");
-  const rawData = (await response.json()) as { domain: string }[];
-  return rawData.map((d) => d.domain).filter((d) => !d.includes("_"));
+  const rawData = (await response.json()) as {
+    domain: string;
+    records: { CNAME?: string; A?: string[] };
+  }[];
+
+  return rawData
+    .filter((d) => !d.domain.includes("_"))
+    .filter(
+      (d) => d.records.CNAME?.includes("github.io") || d.records.A?.includes("185.199.109.153"),
+    )
+    .map((d) => d.domain);
 };
 
-const process = (domain: string): Promise<ScrapeResponse> => {
+const scrape = (domain: string): Promise<ScrapeResponse> => {
   return new Promise((resolve) => {
     let result: ScrapeResponse = {
       domain: domain,
@@ -65,14 +78,10 @@ const process = (domain: string): Promise<ScrapeResponse> => {
         const document = parseHTML(text);
 
         const selectText = (query: string) =>
-          document
-            .querySelector(query)
-            ?.textContent.replace(/\s+/g, " ")
-            .trim();
+          document.querySelector(query)?.textContent.replace(/\s+/g, " ").trim();
 
         const joinSelectText = (query: string, remove?: string) => {
-          if (remove)
-            document.querySelectorAll(remove).forEach((e) => e.remove());
+          if (remove) document.querySelectorAll(remove).forEach((e) => e.remove());
           return document
             .querySelectorAll(query)
             .map((e) => e.textContent)
@@ -88,8 +97,7 @@ const process = (domain: string): Promise<ScrapeResponse> => {
           }
         };
 
-        const resolveUrl = (url?: string) =>
-          url ? new URL(url, response.url).href : undefined;
+        const resolveUrl = (url?: string) => (url ? new URL(url, response.url).href : undefined);
 
         const title = selectText("title");
 
@@ -104,9 +112,7 @@ const process = (domain: string): Promise<ScrapeResponse> => {
           'link[rel="apple-touch-icon"]',
         ]);
 
-        const themeColor = anySelectAttr("content", [
-          'meta[name="theme-color"]',
-        ]);
+        const themeColor = anySelectAttr("content", ['meta[name="theme-color"]']);
 
         const canonical = anySelectAttr("href", ['link[rel="canonical"]']);
 
@@ -125,9 +131,7 @@ const process = (domain: string): Promise<ScrapeResponse> => {
           'meta[name="twitter:url"]',
         ]);
 
-        const ogSiteName = anySelectAttr("content", [
-          'meta[property="og:site_name"]',
-        ]);
+        const ogSiteName = anySelectAttr("content", ['meta[property="og:site_name"]']);
 
         const lang = anySelectAttr("lang", ["html"]);
 
@@ -161,14 +165,11 @@ const process = (domain: string): Promise<ScrapeResponse> => {
 };
 
 const saveResults = async (paths: string[]) => {
-  const outfile = Bun.file(outputFile);
-
   try {
-    await outfile.delete();
+    await unlink(outputFile);
   } catch (err) {}
 
-  const writer = outfile.writer();
-
+  const writer = await open(outputFile, "w");
   await writer.write("{");
 
   for (let i = 0; i < paths.length; i++) {
@@ -179,26 +180,19 @@ const saveResults = async (paths: string[]) => {
     const domain = filepath.split("/").at(-1)!.slice(0, -5); // remove .json
     await writer.write(`\"${domain}\":`);
 
-    const infile = Bun.file(filepath);
-    await writer.write(await infile.arrayBuffer());
+    const infile = await readFile(filepath);
+    await writer.write(infile);
   }
 
   await writer.write("}");
-  await writer.end();
+  await writer.close();
 
-  await Bun.$`gzip -f ${outfile}`;
+  execSync(`gzip -f ${outputFile}`);
 };
 
 const writeResult = async (result: ScrapeResponse) => {
-  await Bun.file(tempFile(result.domain)).write(JSON.stringify(result));
-
-  console.log(
-    queue.length,
-    failed.length,
-    result.domain,
-    result.data?.status,
-    result.data?.title,
-  );
+  await writeFile(tempFile(result.domain), JSON.stringify(result));
+  console.log(queue.length, failed.length, result.domain, result.data?.status, result.data?.title);
 };
 
 const domains = isTest ? testDomains : await getDomains();
@@ -212,7 +206,7 @@ const worker = async () => {
     const domain = queue.pop();
     if (!domain) break;
 
-    const result = await process(domain);
+    const result = await scrape(domain);
     await writeResult(result);
 
     if (result.error) {
@@ -224,7 +218,7 @@ const worker = async () => {
     const domain = failed.pop();
     if (!domain) break;
 
-    const result = await process(domain);
+    const result = await scrape(domain);
     await writeResult(result);
   }
 };
