@@ -59,9 +59,6 @@ const getDomains = async () => {
 
   return rawData
     .filter((d) => !d.domain.includes("_"))
-    .filter(
-      (d) => d.records.CNAME?.includes("github.io") || d.records.A?.includes("185.199.109.153"),
-    )
     .map((d) => d.domain);
 };
 

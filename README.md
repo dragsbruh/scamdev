@@ -1,7 +1,5 @@
 # scamdev
 
-> NOTE: for now im limiting domains scanned to github pages.
-
 download: <https://github.com/dragsbruh/scamdev/releases/latest/download/domains.json.gz>
 
 ## format
