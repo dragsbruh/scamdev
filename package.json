@@ -4,12 +4,12 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@types/node": "^25.9.1"
+    "@types/node": "^25.9.5"
   },
   "peerDependencies": {
     "typescript": "^5"
   },
   "dependencies": {
-    "node-html-parser": "^7.0.2"
+    "node-html-parser": "^7.1.0"
   }
 }

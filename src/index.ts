@@ -2,19 +2,8 @@ import { parse as parseHTML } from "node-html-parser";
 import { execSync } from "node:child_process";
 import { writeFile, unlink, readFile, open, mkdir } from "node:fs/promises";
 
-const isTest = process.argv.at(-1) === "--test";
-const testDomains = [
-  "furina.is-a.dev",
-  "iostpa.is-a.dev",
-  "3.is-a.dev",
-  "c.is-a.dev",
-  "clove.is-a.dev",
-  "doughmination.is-a.dev",
-];
-
-const concurrency = isTest ? 5 : 20;
-const timeout = 7500;
-
+const concurrency = 20;
+const timeout = 10000;
 const outputFile = "domains.json";
 
 const tempDir = "temp";
@@ -164,7 +153,7 @@ const scrape = (domain: string): Promise<ScrapeResponse> => {
 const saveResults = async (paths: string[]) => {
   try {
     await unlink(outputFile);
-  } catch (err) {}
+  } catch (err) { }
 
   const writer = await open(outputFile, "w");
   await writer.write("{");
@@ -192,7 +181,7 @@ const writeResult = async (result: ScrapeResponse) => {
   console.log(queue.length, failed.length, result.domain, result.data?.status, result.data?.title);
 };
 
-const domains = isTest ? testDomains : await getDomains();
+const domains = await getDomains();
 const filenames = domains.map((f) => tempFile(f));
 
 const queue = domains;
