@@ -32,9 +32,9 @@ download: <https://github.com/dragsbruh/scamdev/releases/latest/download/domains
         "siteName?": "opengraph site name",
         "description?": "opengraph description"
       },
-      
-      "error?": "error reason"
     },
+
+    "error?": "error reason"
   },
 }
 ```
